@@ -166,6 +166,7 @@ class GCE_TestDatabaseConnection:
             GCE__cleanup_db(db_path)
 
     def GCE_test_get_connection_creates_parent_dirs(self):
+        import shutil
         tmpdir = tempfile.mkdtemp(prefix="gce_test_db_")
         db_path = os.path.join(tmpdir, "sub", "nested", "test.db")
         try:
@@ -173,11 +174,7 @@ class GCE_TestDatabaseConnection:
             conn.close()
             assert os.path.isfile(db_path)
         finally:
-            # Clean up
-            base = tempfile.mkdtemp()
-            tmpdir_cleanup = tmpdir
-            import shutil
-            shutil.rmtree(tmpdir_cleanup, ignore_errors=True)
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
     def GCE_test_get_connection_wal_mode_enabled(self):
         db_path = GCE__temp_db_path()
