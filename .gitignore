@@ -7,9 +7,6 @@ __pycache__/
 # Sensitive config (contains API key reference)
 config.yaml
 
-# Documentation
-*.md
-
 # Spec file
 博弈混沌引擎大模型.txt
 

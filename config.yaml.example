@@ -5,8 +5,8 @@
 llm:
   enabled: false                          # 是否启用大模型API / Enable LLM API
   api_key: ${GCE_API_KEY}                 # API密钥（环境变量）/ API key (env var)
-  base_url: https://api.deepseek.com/v1   # OpenAI兼容API地址 / OpenAI-compatible API URL
-  model: deepseek-chat                    # 模型名称 / Model name
+  base_url: https://api.deepseek.com      # OpenAI兼容API地址 / OpenAI-compatible API URL
+  model: deepseek-v4-pro                  # 模型名称 / Model name
   temperature: 0.7                        # 采样温度 / Sampling temperature
   max_tokens: 2048                        # 最大生成长度 / Max generation length
   timeout: 30.0                           # 请求超时（秒）/ Request timeout (seconds)
