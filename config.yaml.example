@@ -1,0 +1,64 @@
+# 博弈混沌引擎 (GCE) 配置文件模板 / GCE Configuration Template
+# 复制此文件为 config.yaml 并填入实际值 / Copy to config.yaml and fill in actual values
+# 所有 ${VAR} 将从环境变量替换 / All ${VAR} will be substituted from environment variables
+
+llm:
+  enabled: false                          # 是否启用大模型API / Enable LLM API
+  api_key: ${GCE_API_KEY}                 # API密钥（环境变量）/ API key (env var)
+  base_url: https://api.deepseek.com/v1   # OpenAI兼容API地址
+  model: deepseek-chat
+  temperature: 0.7
+  max_tokens: 2048
+  timeout: 30.0
+
+evolution:
+  population_initial: 100
+  max_population: 2000
+  initial_energy: 100.0
+  reproduce_threshold: 200.0
+  reproduction_cost: 80.0
+  base_reward: 10.0
+  error_scale: 2.0
+  tournament_size: 2
+  crossover_rate: 0.7
+  mutation_rate_base: 0.2
+  mask_flip_rate: 0.05
+  max_depth: 8
+  min_nodes: 3
+  max_nodes: 50
+  feature_count: 36
+  window_size: 20
+  energy_tick_seconds: 1.0
+  breeding_interval_seconds: 2.0
+
+environment:
+  seed: 42
+  simulator:
+    tick_interval: 0.5
+    lorenz_dt: 0.01
+    substeps_per_tick: 50
+    lorenz:
+      sigma: 10.0
+      rho: 28.0
+      beta: 2.6666667
+    num_market_agents: 10
+  online_sources: []
+
+database:
+  path: gce_data.db
+  prediction_ttl_days: 7
+  cleanup_interval_seconds: 3600
+
+logging:
+  level: INFO
+  file: gce.log
+  max_bytes: 10485760
+  backup_count: 5
+
+simulation:
+  elite_count: 10
+  future_steps: 30
+  perturbation_epsilon: 0.001
+  divergence_threshold: 0.5
+
+narratives_path: narratives.yaml

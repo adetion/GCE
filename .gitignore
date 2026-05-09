@@ -1,0 +1,28 @@
+# Bytecode
+__pycache__/
+
+# Pytest cache
+.pytest_cache/
+
+# Sensitive config (contains API key reference)
+config.yaml
+
+# Documentation
+*.md
+
+# Spec file
+博弈混沌引擎大模型.txt
+
+# Database files
+*.db
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
