@@ -82,6 +82,6 @@
 #   邮箱：i126@126.com
 #   网站：wop.cc
 
-"""博弈混沌引擎 (Gaming Chaos Engine) v3.0.0 / Gaming Chaos Engine (GCE) v3.0.0."""
+"""博弈混沌引擎 (Gaming Chaos Engine) v0.1.0 / Gaming Chaos Engine (GCE) v0.1.0."""
 
-__version__ = "3.0.0"
+__version__ = "0.1.0"

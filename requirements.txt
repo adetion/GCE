@@ -1,7 +1,4 @@
 pyyaml>=6.0
-jsonpickle>=3.0
 openai>=1.0
-black>=24.0
-flake8>=7.0
-mypy>=1.0
+yfinance>=0.2
 pytest>=8.0

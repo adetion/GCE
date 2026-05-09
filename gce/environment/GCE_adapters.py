@@ -131,8 +131,9 @@ class GCE_YFinanceAdapter(GCE_BaseEnvironment):
                         pass
             except Exception as e:
                 logger.warning("YFinance fetch failed: %s", e)
-            self._stop_flag = True  # 占位 — 实际实现会使用 sleep / Placeholder — real impl would use sleep
-            break  # 目前仅获取一次后停止 / For now, stop after one fetch
+            # 等待下一个轮询间隔 / Wait for next poll interval
+            import time as _time
+            _time.sleep(self.interval)
 
     def GCE_stop(self) -> None:
         self._stop_flag = True
@@ -157,7 +158,7 @@ class GCE_CoinGeckoAdapter(GCE_BaseEnvironment):
                     f"https://api.coingecko.com/api/v3/simple/price"
                     f"?ids={self.coin_id}&vs_currencies=usd"
                 )
-                req = urllib.request.Request(url, headers={"User-Agent": "gcds/3.0"})
+                req = urllib.request.Request(url, headers={"User-Agent": "gce/0.1.0"})
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     data = json.loads(resp.read())
                     price = float(data[self.coin_id]["usd"])

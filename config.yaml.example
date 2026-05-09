@@ -5,60 +5,60 @@
 llm:
   enabled: false                          # 是否启用大模型API / Enable LLM API
   api_key: ${GCE_API_KEY}                 # API密钥（环境变量）/ API key (env var)
-  base_url: https://api.deepseek.com/v1   # OpenAI兼容API地址
-  model: deepseek-chat
-  temperature: 0.7
-  max_tokens: 2048
-  timeout: 30.0
+  base_url: https://api.deepseek.com/v1   # OpenAI兼容API地址 / OpenAI-compatible API URL
+  model: deepseek-chat                    # 模型名称 / Model name
+  temperature: 0.7                        # 采样温度 / Sampling temperature
+  max_tokens: 2048                        # 最大生成长度 / Max generation length
+  timeout: 30.0                           # 请求超时（秒）/ Request timeout (seconds)
 
 evolution:
-  population_initial: 100
-  max_population: 2000
-  initial_energy: 100.0
-  reproduce_threshold: 200.0
-  reproduction_cost: 80.0
-  base_reward: 10.0
-  error_scale: 2.0
-  tournament_size: 2
-  crossover_rate: 0.7
-  mutation_rate_base: 0.2
-  mask_flip_rate: 0.05
-  max_depth: 8
-  min_nodes: 3
-  max_nodes: 50
-  feature_count: 36
-  window_size: 20
-  energy_tick_seconds: 1.0
-  breeding_interval_seconds: 2.0
+  population_initial: 100                 # 初始种群规模 / Initial population size
+  max_population: 2000                    # 种群上限 / Population cap
+  initial_energy: 100.0                   # 初始能量 / Initial energy
+  reproduce_threshold: 200.0              # 繁殖能量阈值 / Reproduction energy threshold
+  reproduction_cost: 80.0                 # 父代繁殖成本 / Parent reproduction cost (split)
+  base_reward: 10.0                       # 基础能量奖励 / Base energy reward
+  error_scale: 2.0                        # 误差归一化尺度 / Error normalization scale
+  tournament_size: 2                      # 锦标赛选择规模 / Tournament selection size
+  crossover_rate: 0.7                     # 交叉概率 / Crossover rate
+  mutation_rate_base: 0.2                 # 基础变异率 / Base mutation rate
+  mask_flip_rate: 0.05                    # 掩码位翻转概率 / Mask bit flip rate
+  max_depth: 8                            # 树最大深度 / Max tree depth
+  min_nodes: 3                            # 树最小节点数 / Min tree nodes
+  max_nodes: 50                           # 树最大节点数 / Max tree nodes
+  feature_count: 36                       # 特征池大小 / Feature pool size
+  window_size: 20                         # 滑动窗口大小 / Sliding window size
+  energy_tick_seconds: 1.0                # 能量评估间隔（秒）/ Energy evaluation interval
+  breeding_interval_seconds: 2.0          # 繁殖检查间隔（秒）/ Breeding check interval
 
 environment:
-  seed: 42
+  seed: 42                                # 随机种子 / Random seed
   simulator:
-    tick_interval: 0.5
-    lorenz_dt: 0.01
-    substeps_per_tick: 50
+    tick_interval: 0.5                    # 模拟tick间隔（秒）/ Sim tick interval
+    lorenz_dt: 0.01                       # Lorenz积分步长 / Lorenz integration step
+    substeps_per_tick: 50                 # 每个tick的积分子步数 / Substeps per tick
     lorenz:
-      sigma: 10.0
-      rho: 28.0
-      beta: 2.6666667
-    num_market_agents: 10
-  online_sources: []
+      sigma: 10.0                         # Lorenz σ 参数 / Lorenz sigma
+      rho: 28.0                           # Lorenz ρ 参数 / Lorenz rho
+      beta: 2.6666667                     # Lorenz β 参数 / Lorenz beta
+    num_market_agents: 10                 # 市场竞价Agent数量 / Market agents count
+  online_sources: []                      # 在线数据源 / Online data sources
 
 database:
-  path: gce_data.db
-  prediction_ttl_days: 7
-  cleanup_interval_seconds: 3600
+  path: gce_data.db                       # 数据库文件路径 / Database file path
+  prediction_ttl_days: 7                  # 预测记录保留天数 / Prediction TTL (days)
+  cleanup_interval_seconds: 3600          # 清理检查间隔（秒）/ Cleanup check interval
 
 logging:
-  level: INFO
-  file: gce.log
-  max_bytes: 10485760
-  backup_count: 5
+  level: INFO                             # 日志级别 / Log level: DEBUG|INFO|WARNING|ERROR
+  file: gce.log                           # 日志文件路径 / Log file path
+  max_bytes: 10485760                     # 单文件最大字节 (10MB) / Max bytes per file
+  backup_count: 5                         # 保留备份数 / Backup count
 
 simulation:
-  elite_count: 10
-  future_steps: 30
-  perturbation_epsilon: 0.001
-  divergence_threshold: 0.5
+  elite_count: 10                         # 推演精英数量 / Elite agent count for simulation
+  future_steps: 30                        # 预测步数（默认）/ Future steps (default)
+  perturbation_epsilon: 0.001             # 微扰幅度 / Perturbation epsilon
+  divergence_threshold: 0.5               # 分岔检测阈值 / Divergence threshold
 
-narratives_path: narratives.yaml
+narratives_path: narratives.yaml          # 离线叙事模板路径 / Offline narrative template path

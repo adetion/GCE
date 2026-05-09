@@ -6,13 +6,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY gce/ gce/
-COPY main.py .
-COPY config.yaml .
+COPY GCE_main.py .
+COPY config.yaml.example .
 COPY narratives.yaml .
 
 ENV GCE_API_KEY=""
 
 EXPOSE 8080
 
-ENTRYPOINT ["python", "main.py"]
+ENTRYPOINT ["python", "GCE_main.py"]
 CMD ["--config", "config.yaml", "--offline"]
