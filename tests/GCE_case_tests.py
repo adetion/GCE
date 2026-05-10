@@ -383,15 +383,23 @@ def main():
     parser = argparse.ArgumentParser(description="GCE Multi-Industry Case Tests")
     parser.add_argument("--evolution-seconds", type=float, default=5.0,
                         help="Seconds to run evolution before testing scenarios (default: 5.0)")
-    parser.add_argument("--output", type=str, default=None,
-                        help="Output JSON file path (default: print to stdout)")
+    parser.add_argument("--reports-dir", type=str, default=None,
+                        help="Directory for JSON results and narrative files (default: ./reports)")
     args = parser.parse_args()
+
+    # Determine reports directory
+    if args.reports_dir:
+        reports_dir = os.path.abspath(args.reports_dir)
+    else:
+        reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "reports")
+    os.makedirs(reports_dir, exist_ok=True)
 
     print("=" * 70)
     print("GCE Multi-Industry Case Tests / 多行业实际案例测试")
     print("=" * 70)
     print(f"Evolution duration: {args.evolution_seconds}s")
     print(f"Number of scenarios: {len(INDUSTRY_SCENARIOS)}")
+    print(f"Reports directory: {reports_dir}")
     print()
 
     # Setup
@@ -464,31 +472,30 @@ def main():
         else:
             print(f"  {case['industry']} | FAILED")
 
-    # Write detailed output
-    if args.output:
-        # Prepare serializable results (strip narratives for cleaner JSON)
-        serializable = []
-        for r in results:
-            entry = {
-                "industry": r["case"]["industry"],
-                "name": r["case"]["name"],
-                "input": r["case"]["input"],
-                "status": r["status"],
-            }
-            if r["status"] == "success" and r["output"]:
-                o = r["output"]
-                entry["scenario"] = o["scenario"]
-                entry["result"] = o["result"]
-                entry["narrative"] = o["narrative"]
-                entry["narrative_length"] = o["narrative_length"]
-            serializable.append(entry)
+    # Write detailed JSON output to reports directory
+    json_path = os.path.join(reports_dir, "case_results.json")
+    serializable = []
+    for r in results:
+        entry = {
+            "industry": r["case"]["industry"],
+            "name": r["case"]["name"],
+            "input": r["case"]["input"],
+            "status": r["status"],
+        }
+        if r["status"] == "success" and r["output"]:
+            o = r["output"]
+            entry["scenario"] = o["scenario"]
+            entry["result"] = o["result"]
+            entry["narrative"] = o["narrative"]
+            entry["narrative_length"] = o["narrative_length"]
+        serializable.append(entry)
 
-        with open(args.output, "w", encoding="utf-8") as f:
-            json.dump(serializable, f, ensure_ascii=False, indent=2)
-        print(f"\nDetailed results written to: {args.output}")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(serializable, f, ensure_ascii=False, indent=2)
+    print(f"JSON results written to: {json_path}")
 
-    # Also write individual narrative files
-    narratives_dir = os.path.join(tmp_dir, "narratives")
+    # Write individual narrative files to reports directory
+    narratives_dir = os.path.join(reports_dir, "narratives")
     os.makedirs(narratives_dir, exist_ok=True)
     for r in results:
         if r["status"] == "success" and r["output"] and r["output"]["narrative"]:

@@ -100,8 +100,8 @@ from typing import Any, Dict, List, Optional
 from gce.core.GCE_agent import GCE_agent_main
 from gce.core.GCE_breeder import GCE_breeding_loop
 from gce.core.GCE_energy import GCE_energy_loop
-from gce.core.GCE_gene import GCE_Gene, GCE_random_tree
-from gce.core.GCE_genetic_ops import FEATURE_COUNT
+from gce.core.GCE_gene import GCE_Gene, GCE_serialize_gene, GCE_deserialize_gene
+from gce.core.GCE_genetic_ops import FEATURE_COUNT, GCE_random_tree
 from gce.environment.GCE_adapters import GCE_create_environment
 from gce.environment.GCE_base import GCE_BaseEnvironment
 from gce.interface.GCE_llm_client import GCE_LLMClient
@@ -114,7 +114,6 @@ from gce.storage.GCE_repository import (
     GCE_get_active_agents,
     GCE_get_agent_count,
     GCE_insert_agent,
-    GCE_serialize_gene,
     GCE_update_prediction_real_value,
     GCE_insert_event,
 )
@@ -252,6 +251,7 @@ def GCE_main(config_path: str = "config.yaml") -> None:
                 scenario, result, llm_client,
                 offline_mode=not online_mode,
                 narratives_path=narratives_path,
+                domain_id=scenario.domain_id,
             )
             print("\n" + narrative)
 
@@ -329,8 +329,6 @@ def GCE__launch_agents(
 ) -> None:
     """为所有活跃智能体启动进程 / Launch processes for all active agents."""
     active = GCE_get_active_agents(db_path)
-
-    from gce.core.GCE_gene import GCE_deserialize_gene
 
     for agent in active:
         gene_blob = agent["gene_blob"]

@@ -91,10 +91,32 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
+from gce.environment.GCE_sentiment import GCE_analyze_sentiment
+from gce.interface.GCE_domain_templates import GCE_classify_domain
 from gce.interface.GCE_llm_client import GCE_LLMClient
 from gce.simulation.GCE_schemas import GCE_Participant, GCE_Scenario
 
 logger = logging.getLogger("gce.interface.GCE_parser")
+
+# 博弈类型检测关键词 / Game-type detection keywords
+_GAME_TYPE_KEYWORDS: Dict[str, List[str]] = {
+    "price_war": ["价格竞争", "价格战", "价格博弈", "定价博弈", "价格", "定价", "降价"],
+    "auction": ["拍卖", "竞拍", "竞标", "频谱", "出价", "报价", "竞拍博弈"],
+    "negotiation": ["谈判", "协商", "定价谈判", "医保谈判"],
+    "output_competition": ["产量博弈", "产量竞争", "产能", "供给"],
+}
+
+
+def _detect_game_type_from_input(user_input: str) -> str:
+    """从完整输入文本检测博弈类型 / Detect game type from full input text."""
+    scores: Dict[str, int] = {}
+    for game_type, keywords in _GAME_TYPE_KEYWORDS.items():
+        score = sum(1 for kw in keywords if kw in user_input)
+        if score > 0:
+            scores[game_type] = score
+    if not scores:
+        return "price_war"
+    return max(scores, key=lambda k: scores[k])
 
 _SYSTEM_PROMPT = """你是一个场景解析器。根据用户描述，提取以下结构化信息，以严格JSON格式返回：
 {
@@ -122,72 +144,158 @@ def GCE_parse_scene(
     In online mode, uses LLM to GCE_extract structured data.
     In offline mode, uses regex-based heuristic extraction.
     """
+    # 领域分类 / Domain classification
+    domain_template = GCE_classify_domain(user_input, llm_client if not offline_mode else None)
+
     if not offline_mode and llm_client.enabled:
-        return GCE__parse_online(user_input, llm_client)
+        return GCE__parse_online(user_input, llm_client, domain_template)
     else:
-        return GCE__parse_offline(user_input)
+        return GCE__parse_offline(user_input, domain_template)
 
 
-def GCE__parse_online(user_input: str, llm_client: GCE_LLMClient) -> Optional[GCE_Scenario]:
+def GCE__parse_online(
+    user_input: str,
+    llm_client: GCE_LLMClient,
+    domain_template: Any = None,
+) -> Optional[GCE_Scenario]:
     """使用LLM解析场景描述 / Use LLM to parse the scene description."""
+    # 注入领域上下文到 system prompt / Inject domain context into system prompt
+    system_prompt = _SYSTEM_PROMPT
+    if domain_template is not None and domain_template.domain_id:
+        additions = domain_template.parsing_prompt_additions
+        if additions:
+            system_prompt = _SYSTEM_PROMPT + "\n\n## 领域上下文 / Domain Context\n" + additions
+
     messages = [
-        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_input},
     ]
     response = llm_client.GCE_generate(messages)
     if response is None:
         logger.warning("LLM parsing failed, falling back to offline")
-        return GCE__parse_offline(user_input)
+        return GCE__parse_offline(user_input, domain_template)
 
     # 从回复中提取JSON（可能被markdown包裹） / Extract JSON from response (may be wrapped in markdown)
     json_match = re.search(r"\{[\s\S]*\}", response)
     if not json_match:
         logger.warning("No JSON found in LLM response: %s", response[:100])
-        return GCE__parse_offline(user_input)
+        return GCE__parse_offline(user_input, domain_template)
 
     try:
         data = json.loads(json_match.group())
     except json.JSONDecodeError as e:
         logger.warning("JSON parse error: %s", e)
-        return GCE__parse_offline(user_input)
+        return GCE__parse_offline(user_input, domain_template)
 
-    return GCE__build_scenario(data)
+    scenario = GCE__build_scenario(data, user_input, domain_template)
+    if scenario is None:
+        return None
+
+    # 在线模式下运行舆情分析 / Run sentiment analysis in online mode
+    entity_names = [p.name for p in scenario.participants]
+    scenario.sentiment_context = GCE_analyze_sentiment(
+        user_input, entity_names, llm_client,
+        domain_id=scenario.domain_id,
+    )
+
+    return scenario
 
 
-def GCE__parse_offline(user_input: str) -> Optional[GCE_Scenario]:
-    """离线启发式解析器，使用正则表达式 / Offline heuristic parser using regex."""
-    # 提取数字作为初始价格 / Extract numbers as initial_prices
-    numbers = re.findall(r"(\d+\.?\d*)", user_input)
-    prices = [float(n) for n in numbers[:20]]
-    if not prices:
-        # 默认初始价格 / Default initial prices
-        prices = [100.0, 100.5, 101.0, 100.8, 101.2]
+def GCE__parse_offline(
+    user_input: str,
+    domain_template: Any = None,
+) -> Optional[GCE_Scenario]:
+    """离线启发式解析器，使用正则表达式 / Offline heuristic parser using regex.
 
-    # 提取可能的参与方名称（大写短语）/ Extract potential participant names (Capitalized phrases)
-    names = re.findall(r"([A-Z一-鿿][A-Za-z一-鿿]{1,15})", user_input)
-    participants = []
-    seen = set()
-    for name in names:
-        if name not in seen and len(participants) < 5:
-            seen.add(name)
-            participants.append(GCE_Participant(name=name, initial_position=0.0))
+    针对中文输入优化：从语境中提取参与方名称、价格数字和时间步。
+    Optimized for Chinese input: extract participant names, prices, and time steps from context.
+    """
+    # ── 提取参与方名称 / Extract participant names ──
+    # 策略：从"X和Y"、"X、Y和Z"等中文列表结构中提取 / Strategy: extract from Chinese list patterns
+    participants: List[GCE_Participant] = []
+    seen_names: set = set()
+
+    # 模式1: "X和Y在...展开" — X和Y是主体 / Pattern 1: "X和Y在..."
+    subject_match = re.search(r"(.+?)(?:在|参与|进行|展开)", user_input)
+    if subject_match:
+        subject_part = subject_match.group(1)
+        # 从主体部分拆分出各参与方 / Split subject part into individual participants
+        # 分割符：和、与、、(顿号)、以及
+        name_candidates = re.split(r"[和与、]|以及", subject_part)
+        for nc in name_candidates:
+            nc = nc.strip()
+            # 过滤太短、太长或包含非名称特征词的片段
+            if 2 <= len(nc) <= 12 and nc not in seen_names:
+                # 排除明显的非名称短语 / Exclude obvious non-name phrases
+                if not re.search(r"(市场|进行|展开|为期|初始|当前|目标|在|的)", nc):
+                    seen_names.add(nc)
+                    participants.append(GCE_Participant(name=nc, initial_position=0.0))
+
+    # 模式2: 如果没找到，尝试匹配大写字母缩写 / Fallback: try uppercase acronyms
+    if not participants:
+        caps = re.findall(r"([A-Z]{2,8})", user_input)
+        for c in caps:
+            if c not in seen_names and len(participants) < 5:
+                seen_names.add(c)
+                participants.append(GCE_Participant(name=c, initial_position=0.0))
 
     if not participants:
         participants = [GCE_Participant(name="Entity-A"), GCE_Participant(name="Entity-B")]
 
-    # 提取时间提示（如"30天"、"10步"、"未来20"）/ Extract time hint (e.g. "30天", "10步", "未来20")
+    # ── 提取价格数字 / Extract price numbers ──
+    # 优先匹配带单位的数字（元/美元/万元/亿元/每...）——这些更可能是价格
+    # Prefer numbers with currency units — more likely to be prices
+    price_candidates = re.findall(
+        r"(\d+\.?\d*)\s*(?:元|美元|万元|亿元|港元|欧元|日元|每|美金|人民币)",
+        user_input,
+    )
+    if price_candidates:
+        prices = [float(p) for p in price_candidates[:10]]
+    else:
+        # 无单位时提取所有数字，但过滤日期相关 / No units: extract all numbers, filter date-related
+        all_numbers = re.findall(r"(\d+\.?\d*)", user_input)
+        # 排除明显的日期/时间数字（后跟"天""日""周""月""年"）/ Exclude numbers before time units
+        time_numbers = set(re.findall(r"(\d+\.?\d*)\s*[天日周月年步]", user_input))
+        prices = []
+        for n in all_numbers:
+            if n not in time_numbers:
+                prices.append(float(n))
+        if not prices:
+            prices = [float(n) for n in all_numbers[:5]] if all_numbers else [100.0, 100.5, 101.0, 100.8, 101.2]
+
+    # 限制价格数量 / Cap price count
+    prices = prices[:10]
+
+    # ── 提取时间步 / Extract time steps ──
     time_match = re.search(r"(\d+)\s*[天步日周月]", user_input)
     time_steps = int(time_match.group(1)) if time_match else 30
     time_steps = max(5, min(60, time_steps))
 
-    # 目标：使用第一句话或完整输入 / Objective: use first sentence or full input
-    objective = user_input.split("。")[0].strip()[:100]
+    # ── 提取目标 / Extract objective ──
+    # 以第一个句号或"目标是"为标志 / Use first period or "目标是" as delimiter
+    objective_match = re.search(r"目标[是为](.+?)(?:[。，]|$)", user_input)
+    if objective_match:
+        objective = objective_match.group(1).strip()[:100]
+    else:
+        objective = user_input.split("。")[0].strip()[:100]
+
+    # 确定博弈类型：领域模板优先 / Determine game type: template preference first
+    game_type = ""
+    domain_id = ""
+    if domain_template is not None and domain_template.domain_id:
+        domain_id = domain_template.domain_id
+        game_type = domain_template.game_type_preference or _detect_game_type_from_input(user_input)
+    else:
+        game_type = _detect_game_type_from_input(user_input)
 
     scenario = GCE_Scenario(
         participants=participants,
         initial_prices=prices,
         time_steps=time_steps,
         objective=objective,
+        raw_input=user_input,
+        game_type=game_type,
+        domain_id=domain_id,
     )
 
     if not GCE__validate_scenario(scenario):
@@ -196,7 +304,11 @@ def GCE__parse_offline(user_input: str) -> Optional[GCE_Scenario]:
     return scenario
 
 
-def GCE__build_scenario(data: Dict[str, Any]) -> Optional[GCE_Scenario]:
+def GCE__build_scenario(
+    data: Dict[str, Any],
+    raw_input: str = "",
+    domain_template: Any = None,
+) -> Optional[GCE_Scenario]:
     """从解析后的数据字典构建GCE_Scenario / Build a GCE_Scenario from parsed data dict."""
     try:
         participants = [
@@ -215,11 +327,23 @@ def GCE__build_scenario(data: Dict[str, Any]) -> Optional[GCE_Scenario]:
         time_steps = max(5, min(60, time_steps))
         objective = str(data.get("objective", ""))
 
+        # 确定博弈类型和领域 / Determine game type and domain
+        game_type = ""
+        domain_id = ""
+        if domain_template is not None and domain_template.domain_id:
+            domain_id = domain_template.domain_id
+            game_type = domain_template.game_type_preference or _detect_game_type_from_input(raw_input or objective)
+        else:
+            game_type = _detect_game_type_from_input(raw_input or objective)
+
         scenario = GCE_Scenario(
             participants=participants,
             initial_prices=initial_prices,
             time_steps=time_steps,
             objective=objective,
+            raw_input=raw_input or objective,
+            game_type=game_type,
+            domain_id=domain_id,
         )
 
         if not GCE__validate_scenario(scenario):

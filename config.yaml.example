@@ -61,4 +61,8 @@ simulation:
   perturbation_epsilon: 0.001             # 微扰幅度 / Perturbation epsilon
   divergence_threshold: 0.5               # 分岔检测阈值 / Divergence threshold
 
+sentiment:
+  enabled: true                            # 是否启用舆情分析 / Enable sentiment analysis
+  influence_weight: 0.4                    # 舆情影响权重 (0-1) / Sentiment influence weight
+
 narratives_path: narratives.yaml          # 离线叙事模板路径 / Offline narrative template path
